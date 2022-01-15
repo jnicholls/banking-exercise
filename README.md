@@ -4,6 +4,8 @@ This repository contains a simple transaction processing engine to demonstrate R
 
 ## How to Run
 
+*Requires rustc 1.58+.*
+
 As requested, one can run the application using `cargo run`.
 
 Optionally, one can provide `RUST_LOG` env_logger syntax to display logs written to stderr. However, if one's attached to a TTY and not redirecting stderr to a file, it can drastically reduce the performance of the application as it blocks on TTY I/O. Thus, I would not suggest it for large transaction inputs.
