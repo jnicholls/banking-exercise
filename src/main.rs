@@ -2,10 +2,13 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter};
 
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use structopt::StructOpt;
 
 use banking_exercise::{
-    models::transaction::Transaction, options::Options, processor::TransactionProcessor,
+    models::transaction::Transaction,
+    options::Options,
+    processor::{OrderedTransaction, TransactionProcessor},
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -27,14 +30,46 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Open up the CSV file of transactions.
     let file = File::open(opts.input_file)?;
 
-    // Stream in the transactions from the CSV file, and pass them to our transaction processor.
+    // Stream in the transactions from the CSV file, deserialize each in parallel, and pass them to
+    // our transaction processor.
     tracing::info!("Starting up transaction processing...");
     let mut csv_reader = csv::Reader::from_reader(BufReader::new(file));
-    for result in csv_reader.deserialize() {
-        let txn: Transaction = result?;
-        tracing::info!(%txn);
-        txn_processor.process_txn(txn)?;
-    }
+    let headers = csv_reader.byte_headers()?.clone();
+    let mut record_count = 0usize;
+
+    // Each CSV record read in is tagged with the order in which it was present in the CSV file.
+    // This tuple of (order, ByteRecord) is then dispatched to a thread pool where records are
+    // deserialized into Transactions in parallel, which is a reasonably CPU-intensive task.
+    // This leaves the main thread in charge of the blocking I/O and thread pool dispatch.
+    //
+    // Once ByteRecords are deserialized into Transactions, the (order, Transaction) tuple is
+    // used to construct an OrderedTransaction that is in turn sent to the TransactionProcessor.
+    // Since the dispatch to the TransactionProcessor is occurring from multiple deserialization
+    // threads, they will likely end up out of chronological order. The TransactionProcessor will
+    // re-order them before sending them on to be processed by its internal worker threads.
+    csv_reader
+        .byte_records()
+        .map(|br_result| {
+            br_result.map(|br| {
+                let br = (record_count, br);
+                record_count += 1;
+                br
+            })
+        })
+        .par_bridge()
+        .map(|br_result| {
+            br_result.and_then(|(order, br)| {
+                let txn = br.deserialize::<Transaction>(Some(&headers))?;
+                Ok((order, txn))
+            })
+        })
+        .try_for_each(|br_result| {
+            let (order, txn) = br_result.map_err(|e| e.to_string())?;
+            let ordered_txn = OrderedTransaction::new(order, txn);
+            txn_processor
+                .process_ordered_txn(ordered_txn)
+                .map_err(|e| e.to_string())
+        })?;
 
     // When we've finished passing all transactions to the processor, we'll initiate its shutdown.
     // The processor will complete all inflight transactions, if any, and then return to us the
