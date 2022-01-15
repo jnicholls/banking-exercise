@@ -31,4 +31,4 @@ cargo test
 
 ## Solution
 
-For performance against a large amount of transactions, I created a small multi-threaded processing engine to spread the burden of transaction history management and lookup. The history management is all in-memory, no durable storage is used. Transactions are partitioned by client (which I call Account in the code). Given that the transactions are chronological, we can divide them up per client and schedule them to a particular worker thread for processing. Each worker processes one transaction at a time, in the order they are received.
+For performance against a large amount of transactions, I created a small multi-threaded processing engine to spread the burden of transaction history management and lookup. The main thread is focused on I/O and deserialization. Transactions are partitioned by client (which I call Account in the code). Given that the transactions are chronological, we can divide them up per client and schedule them to a particular worker thread for processing. Each worker processes one transaction at a time, in the order they are received. The history management is all in-memory, no durable storage is used.
