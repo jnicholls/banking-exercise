@@ -16,9 +16,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let opts = Options::from_args();
 
-    // Start up our multi-threaded transaction processor, with the same number of worker
-    // threads as there are cores on the system.
-    let txn_processor = TransactionProcessor::new(num_cpus::get());
+    // Start up our multi-threaded transaction processor, with the specified number of workers. If
+    // no worker count was specified, we default to the number of physical cores on the system,
+    // minus 1 for the main thread that is handling I/O and deserialization.
+    let num_workers = opts
+        .num_workers
+        .unwrap_or_else(|| num_cpus::get_physical() - 1);
+    let txn_processor = TransactionProcessor::new(num_workers);
 
     // Open up the CSV file of transactions.
     let file = File::open(opts.input_file)?;

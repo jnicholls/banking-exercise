@@ -11,6 +11,13 @@ pub struct Options {
         validator(is_file)
     )]
     pub input_file: PathBuf,
+
+    #[structopt(
+        short = "w",
+        long,
+        help = "Number of transaction processing worker threads. Defaults to N-1, where N is the number of physical cores on the system."
+    )]
+    pub num_workers: Option<usize>,
 }
 
 fn is_file(path: String) -> Result<(), String> {
