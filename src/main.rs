@@ -18,10 +18,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Start up our multi-threaded transaction processor, with the specified number of workers. If
     // no worker count was specified, we default to the number of physical cores on the system,
-    // minus 1 for the main thread that is handling I/O and deserialization.
+    // accounting for the main thread that is focused on I/O and deserialization. This is an optimum
+    // thread arrangement.
     let num_workers = opts
         .num_workers
-        .unwrap_or_else(|| num_cpus::get_physical() - 1);
+        .unwrap_or_else(|| usize::max(num_cpus::get_physical(), 2) - 1);
     let txn_processor = TransactionProcessor::new(num_workers);
 
     // Open up the CSV file of transactions.
