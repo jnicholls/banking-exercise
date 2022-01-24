@@ -50,7 +50,7 @@ impl Account {
     }
 
     pub fn total(&self) -> Decimal {
-        self.available() - self.held()
+        self.available() + self.held()
     }
 
     pub fn locked(&self) -> bool {
@@ -356,6 +356,27 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn balances() {
+        let mut account = get_account();
+
+        assert_eq!(account.available(), Decimal::ZERO);
+        assert_eq!(account.held(), Decimal::ZERO);
+        assert_eq!(account.total(), Decimal::ZERO);
+
+        let one_hundred = Decimal::new(100, 0);
+        account.available = one_hundred;
+        assert_eq!(account.available(), one_hundred);
+        assert_eq!(account.held(), Decimal::ZERO);
+        assert_eq!(account.total(), one_hundred);
+
+        let fifty = Decimal::new(50, 0);
+        account.held = fifty;
+        assert_eq!(account.available(), one_hundred);
+        assert_eq!(account.held(), fifty);
+        assert_eq!(account.total(), one_hundred + fifty);
     }
 
     #[test]
